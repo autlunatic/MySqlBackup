@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/autlunatic/MySqlBackup/ftp"
 	"github.com/autlunatic/MySqlBackup/Zipping"
+	"github.com/autlunatic/MySqlBackup/ftp"
 	"github.com/autlunatic/goConfig"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
+	"path"
 )
 
 const confFile = "backup.conf"
@@ -17,7 +18,6 @@ type ftpConfig struct {
 	Host       string
 	Username   string
 	Password   string `encrypted:"true"`
-	LocalPath  string
 	RemotePath string
 }
 
@@ -45,18 +45,42 @@ type MySQLBackupConf struct {
 }
 
 func main() {
+	exePath,err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		fmt.Println("Own FilePath not found!", err)
+		return
+	}
 	// Configure a MySQLBackupConf exporter
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Error in the script, check your Config! ERROR: ", r)
+		}
+	}()
 	var mysql MySQLBackupConf
 
-	file, err := os.OpenFile(confFile, os.O_RDWR, 0666)
+	file, err := os.OpenFile(path.Join(exePath, confFile), os.O_RDWR, 0666)
 	defer file.Close()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	crw := encryptedConfig.ConfigReadWriter{&mysql, file, "maximumSecurity"}
-	crw.DoRead()
+	fmt.Println("ConfFile opened", file.Name())
 
+	crw := encryptedConfig.ConfigReadWriter{&mysql, file, "maximumSecurity"}
+	err = crw.DoRead()
+	if err != nil {
+		fmt.Println("Config Read error: ", err)
+	}
+
+	if _, err := os.Stat(mysql.CopyToFilePath); err != nil {
+		if os.IsNotExist(err) {
+			os.Mkdir(mysql.CopyToFilePath, os.ModePerm)
+			fmt.Println("mkdir", mysql.CopyToFilePath)
+		} else {
+			fmt.Println("PathStatus Error", err)
+		}
+	}
+	fmt.Println("path found: ", mysql.CopyToFilePath)
 	// Export the database, and send it to the bucket in the `db_backups` folder
 	fmt.Println("exporting...")
 	filename := mysql.Export()
@@ -64,23 +88,31 @@ func main() {
 		fmt.Println("filename is empty something went wrong with the dump...")
 		return
 	}
-	fmt.Println("zipping ...")
+	fmt.Println("zipping to ", filename+".zip", "...")
 	files := []string{filename}
 	Zipping.ZipFiles(filename+".zip", files)
 	fmt.Println("zipping done!")
 	// remove the old File because we have the zipped version
-	os.Remove(filename)
-	// move the zipped file to the specified path
-	os.Rename(filename+".zip", mysql.CopyToFilePath+filepath.Base(filename)+".zip")
+	err = os.Remove(filename)
+	if err != nil {
+		fmt.Println("error removing file: ", err)
+		return
+	}
+	fmt.Println("Old File deleted!")
 	// do the upload to ftp servers
 	fmt.Println("uploading ... ")
-	mysql.uploadFile()
+	err = mysql.uploadFile(mysql.CopyToFilePath + filepath.Base(filename) + ".zip")
+	if err != nil {
+		fmt.Println("error Uploading file: ", err)
+		return
+	}
 	fmt.Println("All Done!")
 }
 
 // Export produces a `mysqldump` of the specified database, and creates a gzip compressed tarball archive.
 func (m MySQLBackupConf) Export() string {
 	dumpPath := fmt.Sprintf(`bu_%v_%v.sql`, m.DB, time.Now().Unix())
+	dumpPath = path.Join(m.CopyToFilePath, dumpPath)
 
 	options := append(m.dumpOptions(), fmt.Sprintf(`-r%v`, dumpPath))
 	_, err := exec.Command(m.MySqlDumpPath, options...).Output()
@@ -103,15 +135,19 @@ func (m MySQLBackupConf) dumpOptions() []string {
 	options = append(options, m.DB)
 	return options
 }
-func (m MySQLBackupConf) uploadFile() {
+func (m MySQLBackupConf) uploadFile(fileName string) error {
 	for _, servers := range m.FtpConfig {
 		uc := ftp.UploadConf{
-			servers.Host,
-			servers.Username,
-			servers.Password,
-			servers.RemotePath,
-			servers.LocalPath,
+			Host:       servers.Host,
+			UserName:   servers.Username,
+			Password:   servers.Password,
+			RemotePath: servers.RemotePath,
+			FileName:   fileName,
 		}
-		ftp.UploadFile(uc)
+		err := ftp.UploadFile(uc)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }

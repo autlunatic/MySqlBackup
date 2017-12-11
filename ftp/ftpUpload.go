@@ -17,35 +17,36 @@ type UploadConf struct {
 }
 
 //UploadFile Uploads the file with the given UploadConf via FTP
-func UploadFile(c UploadConf) {
-	var err error
+func UploadFile(c UploadConf) (err error) {
 	var ftp *goftp.FTP
+	fmt.Println("uploading", c.FileName , "...")
 
 	if ftp, err = goftp.Connect(c.Host); err != nil {
-		panic(err)
+		return err
 	}
 	defer ftp.Close()
 	fmt.Println("Connected To FTP")
 
 	if err = ftp.Login(c.UserName, c.Password); err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println("Logged In")
 
 	var curPath string
 	if curPath, err = ftp.Pwd(); err != nil {
-		panic(err)
+		return err
 	}
 	ftp.Cwd(c.RemotePath)
 	fmt.Printf("Current path: %s \n", curPath)
 
 	var file *os.File
 	if file, err = os.Open(c.FileName); err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := ftp.Stor(filepath.Base(c.RemotePath), file); err != nil {
-		panic(err)
+	if err := ftp.Stor(filepath.Base(c.FileName), file); err != nil {
+		return err
 	}
-	fmt.Println(file.Name())
+	fmt.Println("finished upload: ", file.Name())
+	return nil
 }

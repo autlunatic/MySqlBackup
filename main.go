@@ -111,7 +111,7 @@ func main() {
 
 // Export produces a `mysqldump` of the specified database, and creates a gzip compressed tarball archive.
 func (m MySQLBackupConf) Export() string {
-	dumpPath := fmt.Sprintf(`bu_%v_%v.sql`, m.DB, time.Now().Unix())
+	dumpPath := fmt.Sprintf(`bu_%v_%v.sql`, m.DB, time.Now().Format("20060102_150405"))
 	dumpPath = path.Join(m.CopyToFilePath, dumpPath)
 
 	options := append(m.dumpOptions(), fmt.Sprintf(`-r%v`, dumpPath))

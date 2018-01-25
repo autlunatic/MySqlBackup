@@ -2,9 +2,10 @@ package ftp
 
 import (
 	"fmt"
-	"github.com/dutchcoders/goftp"
 	"os"
 	"path/filepath"
+
+	"github.com/dutchcoders/goftp"
 )
 
 // UploadConf holds the Information needed to do a FTP Upload with UploadFile
@@ -19,25 +20,24 @@ type UploadConf struct {
 //UploadFile Uploads the file with the given UploadConf via FTP
 func UploadFile(c UploadConf) (err error) {
 	var ftp *goftp.FTP
-	fmt.Println("uploading", c.FileName , "...")
 
 	if ftp, err = goftp.Connect(c.Host); err != nil {
 		return err
 	}
 	defer ftp.Close()
-	fmt.Println("Connected To FTP")
+	//	fmt.Println("Connected To FTP")
 
 	if err = ftp.Login(c.UserName, c.Password); err != nil {
 		return err
 	}
-	fmt.Println("Logged In")
+	//fmt.Println("Logged In")
 
-	var curPath string
-	if curPath, err = ftp.Pwd(); err != nil {
+	//var curPath string
+	if _, err := ftp.Pwd(); err != nil {
 		return err
 	}
 	ftp.Cwd(c.RemotePath)
-	fmt.Printf("Current path: %s \n", curPath)
+	//fmt.Printf("Current path: %s \n", curPath)
 
 	var file *os.File
 	if file, err = os.Open(c.FileName); err != nil {
@@ -47,6 +47,6 @@ func UploadFile(c UploadConf) (err error) {
 	if err := ftp.Stor(filepath.Base(c.FileName), file); err != nil {
 		return err
 	}
-	fmt.Println("finished upload: ", file.Name())
+	fmt.Println("finished upload: ", file.Name(), "to", c.Host)
 	return nil
 }

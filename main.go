@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/autlunatic/MySqlBackup/Zipping"
-	"github.com/autlunatic/MySqlBackup/ftp"
-	"github.com/autlunatic/goConfig"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"time"
-	"path"
+
+	"github.com/autlunatic/goConfig"
+	"github.com/autlunatic/goUtil/Zipping"
+	"github.com/autlunatic/goUtil/ftp"
 )
 
 const confFile = "backup.conf"
@@ -45,7 +46,7 @@ type MySQLBackupConf struct {
 }
 
 func main() {
-	exePath,err := filepath.Abs(filepath.Dir(os.Args[0]))
+	exePath, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		fmt.Println("Own FilePath not found!", err)
 		return
